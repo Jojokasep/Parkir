@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <title>Aplikasi Parkir</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f0f0f0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+    table, th, td {
+      border: 1px solid #aaa;
+    }
+    th, td {
+      padding: 8px;
+      text-align: center;
+    }
+    input, select, button {
+      padding: 5px;
+      margin: 5px 0;
+    }
+    .form-group {
+      margin-bottom: 10px;
+    }
+    #waktuCetak, #strukPrint, #dashboard, #appContent, #shiftInfo {
+      display: none;
+    }
+    #strukPrint {
+      background: white;
+      padding: 20px;
+      margin-top: 20px;
+      border: 1px solid #ccc;
+    }
+    #loginBox {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      max-width: 300px;
+      margin: auto;
+      margin-top: 100px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    #shiftInfo {
+      background-color: black;
+      color: white;
+      padding: 10px;
+      font-weight: bold;
+      text-align: center;
+      margin-bottom: 10px;
+      font-size: 18px;
+    }
+    #jamDigital {
+      text-align: center;
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    #logoutBtn {
+      background-color: red;
+      color: white;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      position: absolute;
+      top: 20px;
+      right: 20px;
+    }
+    #logoutBtn:hover {
+      background-color: darkred;
+    }
+    .rekap {
+      margin-top: 20px;
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.1);
+    }
+    @media print {
+      body * { visibility: hidden; }
+      #strukPrint, #strukPrint * {
+        visibility: visible;
+      }
+      #strukPrint {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 58mm;
+        padding: 10px;
+        font-size: 12px;
+        background: white;
+      }
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+  <div id="loginBox">
+    <h2>Login</h2>
+    <input type="text" id="username" placeholder="Nama Karyawan" /><br />
+    <input type="password" id="password" placeholder="Password" /><br />
+    <button onclick="login()">Login</button>
+    <p id="loginError" style="color:red;"></p>
+  </div>
+
+  <div id="appContent">
+    <button id="logoutBtn" onclick="logout()">Logout</button>
+    <h3 id="sambutan"></h3>
+    <div id="jamDigital"></div>
+
+    <button onclick="bukaMember()" class="btn">Buat Member</button>
+
+    <h2 id="shiftInfo"></h2>
+
+    <div class="form-group">
+      <label>Jenis Kendaraan:</label>
+      <select id="jenis">
+        <option value="mobil">Mobil</option>
+        <option value="motor">Motor</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Jam Masuk:</label>
+      <input type="time" id="jamMasuk">
+    </div>
+    <button onclick="hitung()">Hitung & Simpan</button>
+
+    <div id="waktuCetak"></div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Jenis</th>
+          <th>Jam Masuk</th>
+          <th>Jam Keluar</th>
+          <th>Biaya</th>
+          <th>Shift</th>
+          <th>Aksi</th>
+        </tr>
+      </thead>
+      <tbody id="dataParkir"></tbody>
+    </table>
+
+    <div class="rekap" id="rekapPendapatan"></div>
+  </div>
+
+  <div id="strukPrint">
+    <div id="strukContent"></div>
+  </div>
+
+  <script>
+    let currentShift = 0;
+
+    window.onload = () => {
+      if (localStorage.getItem('loggedIn') === 'true') {
+        document.getElementById('loginBox').style.display = 'none';
+        document.getElementById('appContent').style.display = 'block';
+        const username = localStorage.getItem('username');
+        document.getElementById('sambutan').innerText = `Selamat datang, ${username}!`;
+        tampilkanShift();
+        startClock();
+        loadData();
+      }
+    };
+
+    function login() {
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      if (password === 'admin') {
+        localStorage.setItem('loggedIn', 'true');
+        localStorage.setItem('username', username);
+        document.getElementById('loginBox').style.display = 'none';
+        document.getElementById('appContent').style.display = 'block';
+        tampilkanShift();
+        startClock();
+        loadData();
+        document.getElementById('sambutan').innerText = `Selamat datang, ${username}!`;
+      } else {
+        document.getElementById('loginError').innerText = "Login gagal!";
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem('loggedIn');
+      localStorage.removeItem('username');
+      document.getElementById('loginBox').style.display = 'block';
+      document.getElementById('appContent').style.display = 'none';
+    }
+
+    function tampilkanShift() {
+      const now = new Date();
+      const hour = now.getHours();
+      if (hour >= 7 && hour < 19) {
+        currentShift = 1;
+      } else {
+        currentShift = 2;
+      }
+      document.getElementById('shiftInfo').innerText = `Shift ${currentShift}`;
+      document.getElementById('shiftInfo').style.display = 'block';
+    }
+
+    function startClock() {
+      function updateJam() {
+        const now = new Date();
+        const jam = now.toLocaleTimeString('id-ID');
+        document.getElementById('jamDigital').innerText = jam;
+      }
+      updateJam();
+      setInterval(updateJam, 1000);
+    }
+
+    function getShiftFromJam(jam) {
+      const [h, m] = jam.split(':').map(Number);
+      const totalMenit = h * 60 + m;
+      return (totalMenit >= 420 && totalMenit < 1140) ? 1 : 2;
+    }
+
+    function loadData() {
+      const data = JSON.parse(localStorage.getItem('parkir')) || [];
+      const tbody = document.getElementById('dataParkir');
+      tbody.innerHTML = '';
+      let total1 = 0, total2 = 0;
+
+      data.forEach((item, index) => {
+        const shift = getShiftFromJam(item.jamMasuk);
+        if (shift === currentShift) {
+          tbody.innerHTML += `
+            <tr>
+              <td>${item.jenis}</td>
+              <td>${item.jamMasuk}</td>
+              <td>${item.jamKeluar}</td>
+              <td>Rp ${item.biaya}</td>
+              <td>Shift ${shift}</td>
+              <td>
+                <button onclick="edit(${index})">Edit</button>
+                <button onclick="hapus(${index})">Hapus</button>
+                <button onclick="cetakStruk(${index})">Cetak</button>
+                <button onclick="cetakPDF(${index})">PDF</button>
+              </td>
+            </tr>`;
+        }
+        if (shift === 1) total1 += item.biaya;
+        if (shift === 2) total2 += item.biaya;
+      });
+
+      let rekap = '';
+      if (currentShift === 1) {
+        rekap = `<p>Total Pendapatan Shift 1: Rp ${total1}</p>`;
+      } else {
+        rekap = `<p>Total Pendapatan Shift 2: Rp ${total2}</p>`;
+      }
+      document.getElementById('rekapPendapatan').innerHTML = rekap;
+    }
+
+    function hitung() {
+      const jenis = document.getElementById('jenis').value;
+      const jamMasuk = document.getElementById('jamMasuk').value;
+      if (!jamMasuk) return alert("Jam masuk harus diisi!");
+      const now = new Date();
+      const jamKeluar = now.toTimeString().slice(0,5);
+
+      const [jamM, menitM] = jamMasuk.split(':').map(Number);
+      const [jamK, menitK] = jamKeluar.split(':').map(Number);
+      let durasi = (jamK + menitK/60) - (jamM + menitM/60);
+      if (durasi < 0) durasi += 24;
+
+      let biaya = 0;
+      if (jenis === 'mobil') {
+        biaya = 3000 + Math.max(0, Math.ceil(durasi) - 1) * 2000;
+        biaya = Math.min(biaya, 15000);
+      } else {
+        biaya = 2000 + Math.max(0, Math.ceil(durasi) - 1) * 1000;
+        biaya = Math.min(biaya, 10000);
+      }
+
+      const data = JSON.parse(localStorage.getItem('parkir')) || [];
+      data.push({ jenis, jamMasuk, jamKeluar, biaya });
+      localStorage.setItem('parkir', JSON.stringify(data));
+      loadData();
+    }
+
+    function hapus(index) {
+      const data = JSON.parse(localStorage.getItem('parkir')) || [];
+      if (confirm("Yakin ingin menghapus data ini?")) {
+        data.splice(index, 1);
+        localStorage.setItem('parkir', JSON.stringify(data));
+        loadData();
+      }
+    }
+
+    function edit(index) {
+      const data = JSON.parse(localStorage.getItem('parkir'));
+      const item = data[index];
+      document.getElementById('jenis').value = item.jenis;
+      document.getElementById('jamMasuk').value = item.jamMasuk;
+      data.splice(index, 1);
+      localStorage.setItem('parkir', JSON.stringify(data));
+      loadData();
+    }
+
+    function formatTanggal(date) {
+      const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+      return date.toLocaleDateString('id-ID', options) + ' ' + date.toLocaleTimeString('id-ID');
+    }
+
+    function cetakStruk(index) {
+      const data = JSON.parse(localStorage.getItem('parkir')) || [];
+      const item = data[index];
+      const now = new Date();
+      const tanggal = formatTanggal(now);
+
+      document.getElementById('strukContent').innerHTML = `
+        <div style="text-align:center">
+          <h3 style="margin:0">RSOP CIAMIS</h3>
+          <p style="margin:4px 0;">Struk Parkir</p>
+        </div>
+        <p>Tanggal: ${tanggal}</p>
+        <p>Jenis: ${item.jenis}</p>
+        <p>Masuk: ${item.jamMasuk}</p>
+        <p>Keluar: ${item.jamKeluar}</p>
+        <p>Biaya: Rp ${item.biaya}</p>
+        <hr>
+        <p style="text-align:center">Terima kasih!</p>
+      `;
+      document.getElementById('strukPrint').style.display = 'block';
+      window.print();
+    }
+
+    async function cetakPDF(index) {
+      const data = JSON.parse(localStorage.getItem('parkir')) || [];
+      const item = data[index];
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      const now = new Date();
+      const tanggal = formatTanggal(now);
+
+      doc.setFontSize(16);
+      doc.text("RSOP CIAMIS", 20, 20);
+      doc.setFontSize(14);
+      doc.text("Struk Parkir", 20, 30);
+
+      doc.setFontSize(12);
+      doc.text(`Tanggal: ${tanggal}`, 20, 40);
+      doc.text(`Jenis Kendaraan: ${item.jenis}`, 20, 50);
+      doc.text(`Jam Masuk: ${item.jamMasuk}`, 20, 60);
+      doc.text(`Jam Keluar: ${item.jamKeluar}`, 20, 70);
+      doc.text(`Biaya: Rp ${item.biaya}`, 20, 80);
+      doc.text("Terima kasih telah menggunakan layanan parkir kami!", 20, 100);
+
+      doc.save(`Struk_Parkir_${item.jenis}_${item.jamMasuk.replace(':', '-')}.pdf`);
+    }
+  </script>
+
+  <div id="memberPage" style="display:none;">
+    <h2>Buat Member Rawat Inap RSOP</h2>
+    <div class="form">
+      Jenis Kendaraan:
+      <select id="mJenis">
+        <option value="Mobil">Mobil</option>
+        <option value="Motor">Motor</option>
+      </select><br>
+      Plat Nomor: <input type="text" id="mPlat"><br>
+      Masa Berlaku (hari): <input type="number" id="mMasa" value="1"><br>
+      Status Pembayaran:
+      <select id="mStatus">
+        <option value="Sudah Bayar">Sudah Bayar</option>
+        <option value="Belum Bayar">Belum Bayar</option>
+      </select><br>
+      <button class="btn" onclick="buatMember()">Buat Member</button>
+      <button class="btn" onclick="window.print()">Cetak</button>
+      <button class="btn" onclick="kembaliKeParkir()">Kembali</button>
+    </div>
+
+    <div id="voucherArea" class="card" style="display:none;">
+      <h3>Voucher Parkir / Akses RSOP</h3>
+      <p><strong>Jenis Kendaraan:</strong> <span id="vJenis"></span></p>
+      <p><strong>Plat Nomor:</strong> <span id="vPlat"></span></p>
+      <p><strong>Masa Berlaku:</strong> <span id="vMasa"></span> Hari</p>
+      <p><strong>Status:</strong> <span id="vStatus"></span></p>
+      <p><strong>Total Harga:</strong> Rp <span id="vHarga"></span></p>
+      <div id="qrcode" class="qrcode"></div>
+      <p style="font-size:12px;">Dicetak: <span id="tanggalCetak"></span></p>
+    </div>
+  </div>
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+  function bukaMember() {
+    document.getElementById("appContent").style.display = "none";
+    document.getElementById("memberPage").style.display = "block";
+  }
+
+  function kembaliKeParkir() {
+    document.getElementById("memberPage").style.display = "none";
+    document.getElementById("appContent").style.display = "block";
+  }
+
+  function buatMember() {
+    const jenis = document.getElementById("mJenis").value;
+    const plat = document.getElementById("mPlat").value.toUpperCase().trim();
+    const masa = parseInt(document.getElementById("mMasa").value);
+    const status = document.getElementById("mStatus").value;
+    const tanggal = new Date().toLocaleDateString('id-ID');
+
+    if (!jenis || !plat || isNaN(masa)) {
+      alert("Harap lengkapi semua data.");
+      return;
+    }
+
+    const harga = jenis.toLowerCase().includes("mobil") ? 15000 * masa : 10000 * masa;
+    const hargaStr = harga.toLocaleString('id-ID');
+    const urlQR = `https://rsop.ciamis/kendaraan?plat=${encodeURIComponent(plat)}`;
+
+    document.getElementById("vJenis").innerText = jenis;
+    document.getElementById("vPlat").innerText = plat;
+    document.getElementById("vMasa").innerText = masa;
+    document.getElementById("vStatus").innerText = status;
+    document.getElementById("vHarga").innerText = hargaStr;
+    document.getElementById("tanggalCetak").innerText = tanggal;
+    document.getElementById("voucherArea").style.display = "block";
+
+    document.getElementById("qrcode").innerHTML = "";
+    new QRCode(document.getElementById("qrcode"), {
+      text: urlQR,
+      width: 70,
+      height: 70
+    });
+  }
+</script>
+
+</body>
+</html>
